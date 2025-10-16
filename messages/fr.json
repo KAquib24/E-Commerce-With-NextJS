@@ -1,0 +1,13 @@
+{
+  "Navigation": {
+    "home": "Accueil",
+    "shop": "Boutique",
+    "cart": "Panier",
+    "wishlist": "Liste de souhaits"
+  },
+  "Auth": {
+    "login": "Connexion",
+    "logout": "Déconnexion",
+    "register": "S'inscrire"
+  }
+}
