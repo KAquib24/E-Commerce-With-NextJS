@@ -1,0 +1,49 @@
+/* Custom animations for auth pages */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+/* Smooth focus transitions */
+input:focus {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Password strength indicator */
+.password-strength {
+  height: 4px;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+.password-strength.weak {
+  background: #ef4444;
+  width: 25%;
+}
+
+.password-strength.fair {
+  background: #f59e0b;
+  width: 50%;
+}
+
+.password-strength.good {
+  background: #10b981;
+  width: 75%;
+}
+
+.password-strength.strong {
+  background: #059669;
+  width: 100%;
+}

@@ -1,4 +1,3 @@
-// functions/src/index.ts (or stripeCheckout.ts - but should be in index.ts)
 import * as functions from "firebase-functions";
 import Stripe from "stripe";
 import * as admin from "firebase-admin";
@@ -39,7 +38,7 @@ export const createCheckoutSession = functions.https.onCall(async (request): Pro
       quantity: item.quantity,
       price_data: {
         currency: "usd",
-        unit_amount: Math.round(item.price * 100), // Convert to cents
+        unit_amount: Math.round(item.price * 100),
         product_data: {
           name: item.name,
           description: `Order for ${item.name}`,
@@ -47,6 +46,16 @@ export const createCheckoutSession = functions.https.onCall(async (request): Pro
         },
       },
     }));
+
+    // Use proper domain for success URL
+
+const successUrl = process.env.NODE_ENV === 'production' 
+  ? `https://yourdomain.com/order-success?session_id={CHECKOUT_SESSION_ID}`
+  : `http://localhost:3000/order-success?session_id={CHECKOUT_SESSION_ID}`;
+
+    const cancelUrl = process.env.NODE_ENV === 'production'
+      ? `https://yourdomain.com/checkout`
+      : `http://localhost:3000/checkout`;
 
     // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
@@ -56,8 +65,8 @@ export const createCheckoutSession = functions.https.onCall(async (request): Pro
       },
       line_items: transformedItems,
       mode: "payment",
-      success_url: `http://localhost:3000/order-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `http://localhost:3000/checkout`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       customer_email: email,
       metadata: {
         user_id: request.auth?.uid || "guest",
@@ -72,11 +81,6 @@ export const createCheckoutSession = functions.https.onCall(async (request): Pro
     };
   } catch (error: any) {
     console.error("Stripe checkout error:", error);
-    
-    if (error.type === 'StripeInvalidRequestError') {
-      throw new functions.https.HttpsError('invalid-argument', 'Invalid payment request');
-    } else {
-      throw new functions.https.HttpsError('internal', 'Payment processing failed: ' + error.message);
-    }
+    throw new functions.https.HttpsError('internal', 'Payment processing failed: ' + error.message);
   }
 });

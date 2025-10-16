@@ -95,7 +95,16 @@ const cleanProductData = (product: any) => {
 // Wishlist functions - FIXED VERSION
 export async function addToWishlist(userId: string, product: any) {
   try {
-    const cleanedProduct = cleanProductData(product);
+    const cleanedProduct = {
+      id: product.id,
+      name: product.name || 'Unknown Product',
+      price: product.price || 0,
+      image: product.image || '/placeholder-image.jpg',
+      rating: product.rating || 0,
+      category: product.category || 'Uncategorized',
+      addedAt: new Date()
+    };
+    
     const wishlistRef = doc(db, "users", userId, "wishlist", product.id);
     await setDoc(wishlistRef, cleanedProduct);
     console.log(`Added ${product.name} to wishlist`);
@@ -117,6 +126,7 @@ export async function removeFromWishlist(userId: string, productId: string) {
 }
 
 // ✅ FIXED fetchWishlist
+// src/lib/firestore.ts - Update the fetchWishlist function
 export async function fetchWishlist(userId: string) {
   try {
     const wishlistQuery = collection(db, "users", userId, "wishlist");
@@ -124,15 +134,20 @@ export async function fetchWishlist(userId: string) {
 
     const wishlistItems = querySnapshot.docs.map((doc) => {
       const data = doc.data();
+      
+      // Ensure all required fields are present with proper fallbacks
       return {
         id: doc.id,
-        ...data,
-        addedAt: data.addedAt?.toDate
-          ? data.addedAt.toDate().toISOString()
-          : new Date().toISOString(),
+        name: data.name || 'Unknown Product',
+        price: data.price || 0,
+        image: data.image || '/placeholder-image.jpg',
+        rating: data.rating || 0,
+        category: data.category || 'Uncategorized',
+        addedAt: data.addedAt?.toDate ? data.addedAt.toDate() : new Date(),
       };
     });
 
+    console.log('Fetched wishlist items:', wishlistItems);
     return wishlistItems;
   } catch (error) {
     console.error("Error fetching wishlist:", error);

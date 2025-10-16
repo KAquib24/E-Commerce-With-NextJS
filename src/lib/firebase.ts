@@ -1,11 +1,10 @@
-// src/lib/firebase.ts
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { getAuth, connectAuthEmulator } from "firebase/auth";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getStorage, connectStorageEmulator } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
-
+import { getMessaging, getToken, onMessage, isSupported as isMessagingSupported } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,19 +16,6 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Validate required environment variables
-const requiredEnvVars = [
-  'NEXT_PUBLIC_FIREBASE_API_KEY',
-  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
-  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-];
-
-// requiredEnvVars.forEach((envVar) => {
-//   if (!process.env[envVar]) {
-//     throw new Error(`Missing environment variable: ${envVar}`);
-//   }
-// });
-
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
@@ -37,14 +23,20 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+export const functions = getFunctions(app);
 
-// Optional: Add emulator support for development
-if (process.env.NODE_ENV === 'development') {
-  // Uncomment if using Firebase Emulator Suite
-  // connectAuthEmulator(auth, 'http://localhost:9099');
-  // connectFirestoreEmulator(db, 'localhost', 8080);
-  // connectStorageEmulator(storage, 'localhost', 9199);
+// Initialize Messaging (only on client side)
+let messaging: ReturnType<typeof getMessaging> | null = null;
+
+if (typeof window !== "undefined") {
+  isMessagingSupported().then((supported) => {
+    if (supported) {
+      messaging = getMessaging(app);
+    }
+  });
 }
+
+export { messaging, getToken, onMessage, isMessagingSupported };
 
 // Analytics (client-side only)
 export let analytics: ReturnType<typeof getAnalytics> | null = null;
@@ -54,4 +46,10 @@ if (typeof window !== "undefined") {
   });
 }
 
-export const functions = getFunctions(app);
+// Optional: Add emulator support for development
+if (process.env.NODE_ENV === 'development') {
+  // Uncomment if using Firebase Emulator Suite
+  // connectAuthEmulator(auth, 'http://localhost:9099');
+  // connectFirestoreEmulator(db, 'localhost', 8080);
+  // connectStorageEmulator(storage, 'localhost', 9199);
+}

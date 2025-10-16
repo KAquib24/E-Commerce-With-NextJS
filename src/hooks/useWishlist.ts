@@ -6,10 +6,12 @@ import useAuth from "./useAuth";
 import { 
   loadWishlist, 
   addToWishlistAsync, 
-  removeFromWishlistAsync, 
+  removeFromWishlistAsync,
+  clearWishlist,
+  fixWishlistItems 
 } from "@/redux/slices/wishlistSlice";
 import { RootState, AppDispatch } from "@/redux/store";
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 
 export function useWishlist() {
   const dispatch = useDispatch<AppDispatch>();
@@ -18,27 +20,52 @@ export function useWishlist() {
 
   // Load wishlist when user logs in
   useEffect(() => {
-    if (user) {
+    if (user?.uid) {
+      console.log("Loading wishlist for user:", user.uid);
       dispatch(loadWishlist(user.uid));
+    } else {
+      dispatch(clearWishlist());
     }
-  }, [user, dispatch]);
+  }, [user?.uid, dispatch]);
 
-  const addToWishlist = async (product: any) => {
-    if (!user) {
+  // Debug: Log wishlist state changes
+  useEffect(() => {
+    console.log("Wishlist state updated:", { items, loading, error });
+  }, [items, loading, error]);
+
+  const addToWishlist = useCallback(async (product: any) => {
+    if (!user?.uid) {
       throw new Error("Please log in to add items to wishlist");
     }
-    await dispatch(addToWishlistAsync({ userId: user.uid, product })).unwrap();
-  };
+    
+    // Ensure product has all required fields
+    const validatedProduct = {
+      id: product.id,
+      name: product.name || 'Unknown Product',
+      price: product.price || 0,
+      image: product.image || '/placeholder-image.jpg',
+      rating: product.rating || 0,
+      category: product.category || 'Uncategorized',
+    };
+    
+    return await dispatch(addToWishlistAsync({ 
+      userId: user.uid, 
+      product: validatedProduct 
+    })).unwrap();
+  }, [user?.uid, dispatch]);
 
-  const removeFromWishlist = async (productId: string) => {
-    if (!user) {
+  const removeFromWishlist = useCallback(async (productId: string) => {
+    if (!user?.uid) {
       throw new Error("Please log in to remove items from wishlist");
     }
-    await dispatch(removeFromWishlistAsync({ userId: user.uid, productId })).unwrap();
-  };
+    return await dispatch(removeFromWishlistAsync({ 
+      userId: user.uid, 
+      productId 
+    })).unwrap();
+  }, [user?.uid, dispatch]);
 
-  const toggleWishlist = async (product: any) => {
-    if (!user) {
+  const toggleWishlist = useCallback(async (product: any) => {
+    if (!user?.uid) {
       throw new Error("Please log in to manage wishlist");
     }
 
@@ -49,11 +76,16 @@ export function useWishlist() {
     } else {
       await addToWishlist(product);
     }
-  };
+  }, [user?.uid, items, addToWishlist, removeFromWishlist]);
 
-  const isInWishlist = (productId: string) => {
+  const isInWishlist = useCallback((productId: string) => {
     return items.some(item => item.id === productId);
-  };
+  }, [items]);
+
+  // Emergency fix function if data is corrupted
+  const fixItems = useCallback((fixedItems: any[]) => {
+    dispatch(fixWishlistItems(fixedItems));
+  }, [dispatch]);
 
   return {
     wishlistItems: items,
@@ -64,5 +96,6 @@ export function useWishlist() {
     toggleWishlist,
     isInWishlist,
     hasWishlistItems: items.length > 0,
+    fixItems, // For emergency data fixes
   };
 }
