@@ -9,7 +9,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(request: NextRequest) {
   try {
-    const { items, customer_email, shipping_address, userId } = await request.json();
+    const { items, customer_email, shipping_address, userId, total } = await request.json();
 
     // Validate input
     if (!items || items.length === 0) {
@@ -34,51 +34,58 @@ export async function POST(request: NextRequest) {
         unit_amount: Math.round(item.price * 100),
         product_data: {
           name: item.name,
+          description: `Order for ${item.name}`,
+          images: item.image ? [item.image] : [],
         },
       },
     }));
 
-    // Calculate total
-    const total = items.reduce((sum: number, item: any) => 
-      sum + (item.price * item.quantity), 0
-    );
+    // Use proper domain for URLs
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://yourdomain.com'
+      : 'http://localhost:3000';
 
     // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       shipping_address_collection: {
-        allowed_countries: ['US', 'IN'],
+        allowed_countries: ['US', 'IN', 'GB', 'CA'],
       },
       line_items: lineItems,
       mode: 'payment',
-      success_url: `http://localhost:3000/order-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `http://localhost:3000/checkout`,
+      success_url: `${baseUrl}/order-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/checkout`,
       customer_email: customer_email,
       metadata: {
         userId: userId || 'guest',
-        itemsCount: items.length.toString(),
+        items: JSON.stringify(items),
+        shipping_address: JSON.stringify(shipping_address),
+        total: total.toString(),
+        customer_email: customer_email,
       },
     });
 
     console.log('Stripe session created:', session.id);
 
-    // Save order to Firestore (with pending status)
-    if (userId && userId !== 'guest') {
-      await saveOrder({
-        userId,
-        items,
-        total,
-        status: 'pending',
-        customerEmail: customer_email,
-        shippingAddress: shipping_address,
-        stripeSessionId: session.id,
-        createdAt: new Date(),
-      });
-    }
+    // Save order to Firestore with pending status
+    const orderData = {
+      userId: userId || 'guest',
+      items: items,
+      total: total,
+      status: 'pending' as const,
+      customerEmail: customer_email,
+      shippingAddress: shipping_address,
+      stripeSessionId: session.id,
+      createdAt: new Date(),
+    };
+
+    const orderId = await saveOrder(orderData);
+    console.log('Order saved to Firestore with ID:', orderId);
 
     return NextResponse.json({
       id: session.id,
       url: session.url,
+      orderId: orderId,
     });
   } catch (error: any) {
     console.error('Stripe checkout error:', error);

@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Shield, Lock, Truck, ArrowLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
+import { useDispatch } from "react-redux";
+import { addOrder } from "@/redux/slices/ordersSlice";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -25,6 +27,7 @@ interface CheckoutFormData {
 }
 
 export default function CheckoutPage() {
+  const dispatch = useDispatch();
   const { items, total, discount } = useSelector((state: RootState) => state.cart);
   const { user } = useAuth();
   const [form, setForm] = useState<CheckoutFormData>({
@@ -69,15 +72,7 @@ export default function CheckoutPage() {
     setLoading(true);
 
     try {
-      console.log('Sending checkout request...', {
-        items: items.map(item => ({
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-        })),
-        email: form.email,
-        userId: user?.uid
-      });
+      console.log('🔄 Sending checkout request...');
 
       const response = await fetch('/api/checkout', {
         method: 'POST',
@@ -104,16 +99,40 @@ export default function CheckoutPage() {
         }),
       });
 
-      console.log('Response status:', response.status);
+      console.log('📨 Response status:', response.status);
       
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('API error response:', errorData);
+        console.error('❌ API error response:', errorData);
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Checkout session created:', data);
+      console.log('✅ Checkout session created:', data);
+
+      // Add order to Redux immediately for better UX
+      if (user?.uid) {
+        const newOrder = {
+          id: data.orderId || `temp-${Date.now()}`,
+          userId: user.uid,
+          items: items,
+          total: grandTotal,
+          status: 'pending',
+          customerEmail: form.email,
+          shippingAddress: {
+            name: form.name,
+            address: form.address,
+            city: form.city,
+            pincode: form.pincode,
+            phone: form.phone,
+          },
+          createdAt: new Date().toISOString(),
+          stripeSessionId: data.id,
+        };
+        
+        console.log('🔄 Adding order to Redux:', newOrder.id);
+        dispatch(addOrder(newOrder));
+      }
 
       // Redirect to Stripe Checkout
       if (data.url) {
@@ -122,7 +141,7 @@ export default function CheckoutPage() {
         window.location.href = `https://checkout.stripe.com/pay/${data.id}`;
       }
     } catch (error) {
-      console.error('Full checkout error:', error);
+      console.error('❌ Full checkout error:', error);
       toast({
         title: "Checkout Failed",
         description: error instanceof Error ? error.message : 'Unknown error occurred',

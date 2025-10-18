@@ -95,7 +95,7 @@ export default function OrdersPage() {
                   <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
                     <div className="flex items-center gap-1">
                       <Calendar className="h-4 w-4" />
-                      <span>{order.createdAt.toLocaleDateString()}</span>
+                      <span>{new Date(order.createdAt).toLocaleDateString()}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <DollarSign className="h-4 w-4" />

@@ -11,7 +11,7 @@ import {
 } from "@/redux/slices/cartSlice";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft, Shield, Truck, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import Image from "next/image";
 import Link from "next/link";
@@ -21,6 +21,11 @@ export default function CartPage() {
   const cartItems = useAppSelector((state) => state.cart.items);
   const dispatch = useAppDispatch();
   const [isClearing, setIsClearing] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const subtotal = cartItems.reduce(
     (acc, item) => acc + item.price * item.quantity,
@@ -102,6 +107,61 @@ export default function CartPage() {
     },
   ];
 
+  // Show loading state until client-side
+  if (!isClient) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-8">
+        <div className="container mx-auto px-4">
+          <div className="animate-pulse">
+            {/* Header Skeleton */}
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <div className="h-10 bg-gray-200 rounded w-64 mb-2"></div>
+                <div className="h-4 bg-gray-200 rounded w-32"></div>
+              </div>
+              <div className="h-10 bg-gray-200 rounded w-32"></div>
+            </div>
+            
+            {/* Cart Items Skeleton */}
+            <div className="grid lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-4">
+                {[1, 2].map((item) => (
+                  <div key={item} className="flex items-center gap-6 p-6 border border-gray-200 rounded-2xl bg-white">
+                    <div className="w-24 h-24 bg-gray-200 rounded-xl"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="h-6 bg-gray-200 rounded w-3/4"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gray-200 rounded-xl"></div>
+                      <div className="w-16 h-10 bg-gray-200 rounded-xl"></div>
+                      <div className="w-10 h-10 bg-gray-200 rounded-xl"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Summary Skeleton */}
+              <div className="space-y-6">
+                <div className="p-6 border border-gray-200 rounded-2xl bg-white">
+                  <div className="h-8 bg-gray-200 rounded w-40 mb-6"></div>
+                  <div className="space-y-4">
+                    {[1, 2, 3, 4].map((item) => (
+                      <div key={item} className="flex justify-between">
+                        <div className="h-4 bg-gray-200 rounded w-24"></div>
+                        <div className="h-4 bg-gray-200 rounded w-16"></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12">
@@ -123,7 +183,7 @@ export default function CartPage() {
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
               <Button
-                onClick={() => router.push("/shop")}
+                onClick={() => router.push("/products")}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg font-semibold rounded-full transition-all duration-300 transform hover:scale-105 shadow-lg"
                 size="lg"
               >
@@ -150,7 +210,7 @@ export default function CartPage() {
                   <div
                     key={product.id}
                     className="border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all duration-300 cursor-pointer group"
-                    onClick={() => router.push(`/product/${product.id}`)}
+                    onClick={() => router.push(`/products/${product.id}`)}
                   >
                     <div className="aspect-square bg-gray-100 rounded-lg mb-3 flex items-center justify-center">
                       <ShoppingBag className="h-12 w-12 text-gray-400 group-hover:text-blue-600 transition-colors" />
@@ -232,7 +292,6 @@ export default function CartPage() {
                   <p className="text-2xl font-bold text-blue-600 mb-1">
                     ${item.price.toFixed(2)}
                   </p>
-
                 </div>
 
                 {/* Quantity Controls */}
@@ -349,7 +408,7 @@ export default function CartPage() {
               <Button
                 variant="outline"
                 className="w-full border-2 border-gray-300 hover:border-blue-500 hover:bg-blue-50 text-gray-700 hover:text-blue-700 py-3 text-lg font-semibold rounded-xl transition-all duration-300"
-                onClick={() => router.push("/shop")}
+                onClick={() => router.push("/products")}
               >
                 Continue Shopping
               </Button>
@@ -398,7 +457,7 @@ export default function CartPage() {
                   <div
                     key={product.id}
                     className="border border-gray-200 rounded-xl p-4 hover:shadow-lg transition-all duration-300 cursor-pointer group"
-                    onClick={() => router.push(`/product/${product.id}`)}
+                    onClick={() => router.push(`/products/${product.id}`)}
                   >
                     <div className="aspect-square bg-gray-100 rounded-lg mb-3 flex items-center justify-center">
                       <ShoppingBag className="h-12 w-12 text-gray-400 group-hover:text-blue-600 transition-colors" />
