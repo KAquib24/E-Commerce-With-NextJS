@@ -1,3 +1,4 @@
+// In your ProfilePage component, update the imports and add cancel functionality
 "use client";
 import { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
@@ -5,6 +6,7 @@ import { RootState } from "@/redux/store";
 import { getOrders } from "@/redux/slices/ordersSlice";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
 import useAuth from "@/hooks/useAuth";
+import { useOrders } from "@/hooks/useOrders";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,19 +29,28 @@ import {
   Settings,
   Edit3,
   Plus,
+  XCircle,
+  AlertTriangle,
+  History,
+  RotateCcw,
+  Eye,
 } from "lucide-react";
 import { usePriceFormatter } from "@/lib/utils/priceFormatter";
 import { toast } from "@/hooks/use-toast";
 
-// In your ProfilePage component, add these debug logs:
+type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+type OrderTab = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+
 export default function ProfilePage() {
   const { user } = useAuth();
   const dispatch = useDispatch();
-  const { orders, loading } = useSelector((state: RootState) => state.orders);
+  const { orders, loading, error } = useSelector((state: RootState) => state.orders);
+  const { cancelOrder } = useOrders();
   const { formatPrice } = usePriceFormatter();
-  const [activeTab, setActiveTab] = useState<
-    "orders" | "addresses" | "settings"
-  >("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "addresses" | "settings">("orders");
+  const [activeOrderTab, setActiveOrderTab] = useState<OrderTab>("all");
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState<string | null>(null);
 
   // Debug logs
   useEffect(() => {
@@ -57,515 +68,573 @@ export default function ProfilePage() {
     }
   }, [user, dispatch]);
 
-  // ... rest of your component
+  // Add cancel order function
+  const handleCancelOrder = async (orderId: string) => {
+    if (!user?.uid) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to cancel orders",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCancellingOrderId(orderId);
+    try {
+      await cancelOrder(orderId, user.uid);
+      toast({
+        title: "Order Cancelled",
+        description: "Your order has been successfully cancelled",
+        variant: "default",
+      });
+      setShowCancelConfirm(null);
+    } catch (error) {
+      toast({
+        title: "Cancellation Failed",
+        description: "Failed to cancel order. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
+
+  // Filter orders based on active tab
+  const filteredOrders = orders?.filter(order => {
+    if (activeOrderTab === 'all') return true;
+    return order.status === activeOrderTab;
+  }) || [];
+
+  // Get order counts for each status
+  const orderCounts = {
+    all: orders?.length || 0,
+    pending: orders?.filter(order => order.status === 'pending').length || 0,
+    processing: orders?.filter(order => order.status === 'processing').length || 0,
+    shipped: orders?.filter(order => order.status === 'shipped').length || 0,
+    delivered: orders?.filter(order => order.status === 'delivered').length || 0,
+    cancelled: orders?.filter(order => order.status === 'cancelled').length || 0,
+  };
+
+  // Order status helper functions
   const getOrderStatus = (status: string) => {
     const statusConfig = {
-      pending: {
-        color: "bg-yellow-100 text-yellow-800",
-        icon: Clock,
-        label: "Pending",
-      },
-      processing: {
-        color: "bg-blue-100 text-blue-800",
-        icon: Package,
-        label: "Processing",
-      },
-      shipped: {
-        color: "bg-purple-100 text-purple-800",
-        icon: Truck,
-        label: "Shipped",
-      },
-      delivered: {
-        color: "bg-green-100 text-green-800",
-        icon: CheckCircle,
-        label: "Delivered",
-      },
-      cancelled: {
-        color: "bg-red-100 text-red-800",
-        icon: Clock,
-        label: "Cancelled",
-      },
+      pending: { label: "Pending", icon: Clock, color: "text-yellow-600 bg-yellow-50 border-yellow-200" },
+      processing: { label: "Processing", icon: Package, color: "text-blue-600 bg-blue-50 border-blue-200" },
+      shipped: { label: "Shipped", icon: Truck, color: "text-purple-600 bg-purple-50 border-purple-200" },
+      delivered: { label: "Delivered", icon: CheckCircle, color: "text-green-600 bg-green-50 border-green-200" },
+      cancelled: { label: "Cancelled", icon: XCircle, color: "text-gray-600 bg-gray-50 border-gray-200" },
     };
 
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
+    const IconComponent = config.icon;
+
     return (
-      statusConfig[status as keyof typeof statusConfig] || statusConfig.pending
+      <Badge className={`${config.color} px-3 py-1 text-xs font-medium flex items-center gap-1`}>
+        <IconComponent className="h-3 w-3" />
+        {config.label}
+      </Badge>
     );
   };
 
   const formatOrderDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     });
   };
 
-  const totalSpent = orders.reduce(
-    (total, order) => total + (order.total || 0),
-    0
-  );
-  const totalOrders = orders.length;
+  // Order tab configuration
+  const orderTabs: { id: OrderTab; label: string; icon: any; description: string }[] = [
+    { id: 'all', label: 'All Orders', icon: History, description: 'View your complete order history' },
+    { id: 'pending', label: 'Pending', icon: Clock, description: 'Orders awaiting confirmation' },
+    { id: 'processing', label: 'Processing', icon: Package, description: 'Orders being prepared' },
+    { id: 'shipped', label: 'Shipped', icon: Truck, description: 'Orders on the way' },
+    { id: 'delivered', label: 'Delivered', icon: CheckCircle, description: 'Completed orders' },
+    { id: 'cancelled', label: 'Cancelled', icon: XCircle, description: 'Cancelled orders' },
+  ];
 
-  if (!user) {
-    return null; // ProtectedRoute will handle redirection
-  }
+  // Empty state messages
+  const getEmptyStateMessage = (tab: OrderTab) => {
+    const messages = {
+      all: {
+        title: "No orders yet",
+        description: "When you place orders, they will appear here.",
+        icon: ShoppingBag
+      },
+      pending: {
+        title: "No pending orders",
+        description: "You don't have any orders awaiting confirmation.",
+        icon: Clock
+      },
+      processing: {
+        title: "No orders in processing",
+        description: "All your orders are either completed or awaiting shipment.",
+        icon: Package
+      },
+      shipped: {
+        title: "No orders shipped",
+        description: "Your orders will appear here once they're on the way.",
+        icon: Truck
+      },
+      delivered: {
+        title: "No delivered orders",
+        description: "Completed orders will appear here for your reference.",
+        icon: CheckCircle
+      },
+      cancelled: {
+        title: "No cancelled orders",
+        description: "You haven't cancelled any orders yet.",
+        icon: XCircle
+      }
+    };
+    return messages[tab];
+  };
 
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50 py-8">
-        <div className="container mx-auto px-4 max-w-6xl">
-          {/* Header Section */}
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">
-              My Account
-            </h1>
-            <p className="text-gray-600 text-lg">
-              Manage your profile, orders, and preferences
-            </p>
-          </div>
-
-          <div className="grid lg:grid-cols-4 gap-8">
-            {/* Sidebar */}
-            <div className="lg:col-span-1 space-y-6">
-              {/* User Profile Card */}
-              <Card className="border-0 shadow-lg bg-white">
-                <CardContent className="p-6">
-                  <div className="text-center">
-                    <div className="relative inline-block mb-4">
-                      <img
-                        src={user?.photoURL || "/default-user.png"}
-                        alt="User"
-                        className="w-20 h-20 rounded-full border-4 border-white shadow-lg mx-auto"
-                      />
-                      <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 border-2 border-white rounded-full"></div>
-                    </div>
-                    <h2 className="text-xl font-bold text-gray-900 mb-1">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Profile Header */}
+          <Card className="mb-8 border-0 shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                    <User className="h-8 w-8 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-bold text-gray-900">
                       {user?.displayName || "User"}
-                    </h2>
-                    <p className="text-gray-600 text-sm mb-4 flex items-center justify-center gap-2">
-                      <Mail className="h-4 w-4" />
+                    </h1>
+                    <p className="text-gray-600 flex items-center">
+                      <Mail className="h-4 w-4 mr-2" />
                       {user?.email}
                     </p>
-                    <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-2">
-                      <Calendar className="h-4 w-4" />
-                      Member since {new Date().getFullYear()}
-                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+                <Button variant="outline" className="border-gray-300">
+                  <Edit3 className="h-4 w-4 mr-2" />
+                  Edit Profile
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-              {/* Navigation Tabs */}
-              <Card className="border-0 shadow-lg bg-white">
-                <CardContent className="p-4">
-                  <nav className="space-y-2">
+          {/* Navigation Tabs */}
+          <div className="mb-8">
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8">
+                {[
+                  { id: "orders", label: "My Orders", icon: ShoppingBag },
+                  { id: "addresses", label: "Addresses", icon: MapPin },
+                  { id: "settings", label: "Settings", icon: Settings },
+                ].map((tab) => {
+                  const IconComponent = tab.icon;
+                  return (
                     <button
-                      onClick={() => setActiveTab("orders")}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                        activeTab === "orders"
-                          ? "bg-blue-50 text-blue-700 border border-blue-200"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as any)}
+                      className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+                        activeTab === tab.id
+                          ? "border-blue-500 text-blue-600"
+                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                       }`}
                     >
-                      <ShoppingBag className="h-5 w-5" />
-                      <div>
-                        <div className="font-medium">My Orders</div>
-                        <div className="text-sm opacity-75">
-                          {totalOrders} orders
-                        </div>
-                      </div>
+                      <IconComponent className="h-4 w-4" />
+                      {tab.label}
                     </button>
-
-                    <button
-                      onClick={() => setActiveTab("addresses")}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                        activeTab === "addresses"
-                          ? "bg-blue-50 text-blue-700 border border-blue-200"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                      }`}
-                    >
-                      <MapPin className="h-5 w-5" />
-                      <div>
-                        <div className="font-medium">Addresses</div>
-                        <div className="text-sm opacity-75">
-                          Manage addresses
-                        </div>
-                      </div>
-                    </button>
-
-                    <button
-                      onClick={() => setActiveTab("settings")}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                        activeTab === "settings"
-                          ? "bg-blue-50 text-blue-700 border border-blue-200"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                      }`}
-                    >
-                      <Settings className="h-5 w-5" />
-                      <div>
-                        <div className="font-medium">Settings</div>
-                        <div className="text-sm opacity-75">Preferences</div>
-                      </div>
-                    </button>
-                  </nav>
-                </CardContent>
-              </Card>
-
-              {/* Stats Card */}
-              <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-600 to-purple-600 text-white">
-                <CardContent className="p-6">
-                  <h3 className="font-semibold mb-4">Shopping Stats</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-blue-100">Total Orders</span>
-                      <span className="font-bold">{totalOrders}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-blue-100">Total Spent</span>
-                      <span className="font-bold">
-                        {formatPrice(totalSpent)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-blue-100">Member Since</span>
-                      <span className="font-bold text-sm">
-                        {new Date().getFullYear()}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  );
+                })}
+              </nav>
             </div>
+          </div>
 
-            {/* Main Content */}
-            <div className="lg:col-span-3 space-y-6">
-              {/* Orders Tab */}
-              {activeTab === "orders" && (
-                <Card className="border-0 shadow-lg bg-white">
-                  <CardHeader className="pb-4">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <CardTitle className="text-2xl font-bold text-gray-900">
-                          Order History
-                        </CardTitle>
-                        <CardDescription>
-                          Track and manage your recent purchases
-                        </CardDescription>
-                      </div>
+          {/* Orders Tab Content */}
+          {activeTab === "orders" && (
+            <div className="space-y-6">
+              {/* Order Status Tabs */}
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-6">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    {orderTabs.map((tab) => {
+                      const IconComponent = tab.icon;
+                      const isActive = activeOrderTab === tab.id;
+                      const count = orderCounts[tab.id];
+                      
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setActiveOrderTab(tab.id)}
+                          className={`p-4 rounded-lg border-2 text-left transition-all ${
+                            isActive
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-gray-200 bg-white hover:border-gray-300"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-full ${
+                              isActive ? "bg-blue-100" : "bg-gray-100"
+                            }`}>
+                              <IconComponent className={`h-4 w-4 ${
+                                isActive ? "text-blue-600" : "text-gray-600"
+                              }`} />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className={`font-semibold ${
+                                  isActive ? "text-blue-900" : "text-gray-900"
+                                }`}>
+                                  {count}
+                                </span>
+                                <span className={`text-sm ${
+                                  isActive ? "text-blue-700" : "text-gray-600"
+                                }`}>
+                                  {tab.label}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Orders List */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      {activeOrderTab === 'all' ? 'All Orders' : orderTabs.find(tab => tab.id === activeOrderTab)?.label}
+                    </h2>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {orderTabs.find(tab => tab.id === activeOrderTab)?.description}
+                    </p>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {filteredOrders.length} {filteredOrders.length === 1 ? "order" : "orders"}
+                  </div>
+                </div>
+
+                {loading ? (
+                  <div className="flex justify-center items-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                  </div>
+                ) : error ? (
+                  <Card className="border-0 shadow-sm">
+                    <CardContent className="p-6 text-center">
+                      <p className="text-red-600">Error loading orders: {error}</p>
                       <Button
                         variant="outline"
-                        className="border-blue-600 text-blue-600 hover:bg-blue-50"
-                        onClick={() => (window.location.href = "/products")}
+                        className="mt-4"
+                        onClick={() => user?.uid && dispatch(getOrders(user.uid) as any)}
                       >
-                        <ShoppingBag className="h-4 w-4 mr-2" />
-                        Continue Shopping
+                        Try Again
                       </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {loading ? (
-                      <div className="flex justify-center items-center py-12">
-                        <div className="flex flex-col items-center gap-4">
-                          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                          <p className="text-gray-600">
-                            Loading your orders...
-                          </p>
-                        </div>
-                      </div>
-                    ) : orders.length === 0 ? (
-                      <div className="text-center py-12">
-                        <div className="w-24 h-24 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                          <ShoppingBag className="h-10 w-10 text-gray-400" />
-                        </div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                          No Orders Yet
-                        </h3>
-                        <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                          You haven't placed any orders yet. Start shopping to
-                          see your order history here.
-                        </p>
-                        <Button
-                          onClick={() => (window.location.href = "/products")}
-                          className="bg-blue-600 hover:bg-blue-700"
-                        >
-                          <ShoppingBag className="h-4 w-4 mr-2" />
-                          Start Shopping
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {orders.map((order) => {
-                          const statusConfig = getOrderStatus(
-                            order.status || "pending"
-                          );
-                          const StatusIcon = statusConfig.icon;
+                    </CardContent>
+                  </Card>
+                ) : filteredOrders.length === 0 ? (
+                  <Card className="border-0 shadow-sm">
+                    <CardContent className="p-12 text-center">
+                      {(() => {
+                        const emptyState = getEmptyStateMessage(activeOrderTab);
+                        const IconComponent = emptyState.icon;
+                        return (
+                          <>
+                            <IconComponent className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                            <h3 className="text-lg font-medium text-gray-900 mb-2">
+                              {emptyState.title}
+                            </h3>
+                            <p className="text-gray-600 mb-6">
+                              {emptyState.description}
+                            </p>
+                            {activeOrderTab !== 'all' && (
+                              <Button 
+                                variant="outline"
+                                onClick={() => setActiveOrderTab('all')}
+                                className="border-gray-300"
+                              >
+                                View All Orders
+                              </Button>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredOrders.map((order) => (
+                      <Card key={order.id} className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                        <CardContent className="p-6">
+                          {/* Order Header */}
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-4 flex-wrap">
+                                <h3 className="font-semibold text-gray-900">
+                                  Order #{order.id?.slice(-8) || "N/A"}
+                                </h3>
+                                {getOrderStatus(order.status)}
+                              </div>
+                              <div className="flex items-center text-sm text-gray-600">
+                                <Calendar className="h-4 w-4 mr-2" />
+                                {formatOrderDate(order.createdAt)}
+                                {order.deliveredAt && order.status === 'delivered' && (
+                                  <span className="ml-4 flex items-center text-green-600">
+                                    <CheckCircle className="h-4 w-4 mr-1" />
+                                    Delivered on {formatOrderDate(order.deliveredAt)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-lg font-bold text-gray-900 mt-2 sm:mt-0">
+                              {formatPrice(order.total)}
+                            </div>
+                          </div>
 
-                          return (
-                            <div
-                              key={order.id}
-                              className="border border-gray-200 rounded-2xl p-6 hover:shadow-md transition-all duration-200 bg-white"
-                            >
-                              {/* Order Header */}
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-                                <div>
-                                  <div className="flex items-center gap-3 mb-2">
-                                    <h4 className="font-semibold text-gray-900">
-                                      Order #{order.id?.slice(-8) || "N/A"}
-                                    </h4>
-                                    <Badge
-                                      className={`${statusConfig.color} px-3 py-1 text-xs font-medium`}
-                                    >
-                                      <StatusIcon className="h-3 w-3 mr-1" />
-                                      {statusConfig.label}
-                                    </Badge>
+                          {/* Order Items Preview */}
+                          <div className="mb-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Package className="h-4 w-4 text-gray-500" />
+                              <span className="text-sm font-medium text-gray-700">Items</span>
+                            </div>
+                            <div className="space-y-2">
+                              {order.items?.slice(0, 3).map((item, index) => (
+                                <div key={index} className="flex items-center justify-between text-sm">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center">
+                                      <span className="text-xs font-medium text-gray-600">
+                                        {item.quantity}x
+                                      </span>
+                                    </div>
+                                    <span className="text-gray-700">{item.name}</span>
                                   </div>
-                                  <p className="text-sm text-gray-600 flex items-center gap-2">
-                                    <Calendar className="h-4 w-4" />
-                                    {formatOrderDate(
-                                      order.createdAt ||
-                                        new Date().toISOString()
-                                    )}
-                                  </p>
+                                  <span className="text-gray-900 font-medium">
+                                    {formatPrice(item.price * item.quantity)}
+                                  </span>
                                 </div>
-                                <div className="text-right">
-                                  <p className="text-2xl font-bold text-blue-600">
-                                    {formatPrice(order.total || 0)}
-                                  </p>
-                                  <p className="text-sm text-gray-600">
-                                    {order.items?.length || 0} items
-                                  </p>
+                              ))}
+                              {order.items && order.items.length > 3 && (
+                                <div className="text-sm text-gray-500 pt-2">
+                                  +{order.items.length - 3} more items
                                 </div>
-                              </div>
+                              )}
+                            </div>
+                          </div>
 
-                              {/* Order Items */}
-                              <div className="border-t border-gray-100 pt-4">
-                                <div className="grid gap-3">
-                                  {order.items?.map(
-                                    (item: any, index: number) => (
-                                      <div
-                                        key={index}
-                                        className="flex items-center gap-4 py-2"
+                          {/* Order Actions */}
+                          <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-gray-300"
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
+                            </Button>
+                            
+                            {/* Status-based Actions */}
+                            <div className="flex gap-2">
+                              {/* Cancel Order - Only for pending/processing */}
+                              {(order.status === 'pending' || order.status === 'processing') && (
+                                <>
+                                  {showCancelConfirm === order.id ? (
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-gray-300 text-gray-600 hover:bg-gray-50"
+                                        onClick={() => setShowCancelConfirm(null)}
+                                        disabled={cancellingOrderId === order.id}
                                       >
-                                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                          {item.image ? (
-                                            <img
-                                              src={item.image}
-                                              alt={item.name}
-                                              className="w-10 h-10 object-cover rounded"
-                                            />
-                                          ) : (
-                                            <Package className="h-6 w-6 text-gray-400" />
-                                          )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                          <p className="font-medium text-gray-900 truncate">
-                                            {item.name || `Item ${index + 1}`}
-                                          </p>
-                                          <p className="text-sm text-gray-600">
-                                            Qty: {item.quantity || 1} •{" "}
-                                            {formatPrice(item.price || 0)} each
-                                          </p>
-                                        </div>
-                                        <div className="text-right">
-                                          <p className="font-semibold text-gray-900">
-                                            {formatPrice(
-                                              (item.price || 0) *
-                                                (item.quantity || 1)
-                                            )}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    )
+                                        Keep Order
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-red-300 text-red-600 hover:bg-red-50"
+                                        onClick={() => handleCancelOrder(order.id)}
+                                        disabled={cancellingOrderId === order.id}
+                                      >
+                                        {cancellingOrderId === order.id ? (
+                                          <>
+                                            <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin mr-2" />
+                                            Cancelling...
+                                          </>
+                                        ) : (
+                                          <>
+                                            <XCircle className="h-4 w-4 mr-2" />
+                                            Confirm Cancel
+                                          </>
+                                        )}
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="border-red-300 text-red-600 hover:bg-red-50"
+                                      onClick={() => setShowCancelConfirm(order.id)}
+                                      disabled={cancellingOrderId === order.id}
+                                    >
+                                      <XCircle className="h-4 w-4 mr-2" />
+                                      Cancel Order
+                                    </Button>
                                   )}
-                                </div>
-                              </div>
-
-                              {/* Order Actions */}
-                              <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+                                </>
+                              )}
+                              
+                              {/* Track Order - For shipped orders */}
+                              {order.status === 'shipped' && (
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="border-gray-300"
+                                  className="border-blue-300 text-blue-600 hover:bg-blue-50"
                                 >
-                                  View Details
+                                  <Truck className="h-4 w-4 mr-2" />
+                                  Track Order
                                 </Button>
-                                {/* // In your profile page, fix the status */}
-                                {/* comparison: */}
-                                {(order.status === 'pending' || order.status === 'paid') && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="border-red-300 text-red-600 hover:bg-red-50"
-                                  >
-                                    Cancel Order
-                                  </Button>
-                                )}
-                                {order.status === "delivered" && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="border-green-300 text-green-600 hover:bg-green-50"
-                                  >
-                                    Reorder
-                                  </Button>
-                                )}
-                              </div>
+                              )}
+                              
+                              {/* Reorder - For delivered orders */}
+                              {order.status === 'delivered' && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-green-300 text-green-600 hover:bg-green-50"
+                                >
+                                  <RotateCcw className="h-4 w-4 mr-2" />
+                                  Reorder
+                                </Button>
+                              )}
+                              
+                              {/* Cancelled Badge */}
+                              {order.status === "cancelled" && (
+                                <Badge className="bg-gray-100 text-gray-600 px-3 py-1 text-xs font-medium border-gray-300">
+                                  <XCircle className="h-3 w-3 mr-1" />
+                                  Cancelled
+                                </Badge>
+                              )}
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
-              {/* Addresses Tab */}
-              {activeTab === "addresses" && (
-                <Card className="border-0 shadow-lg bg-white">
-                  <CardHeader className="pb-4">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <CardTitle className="text-2xl font-bold text-gray-900">
-                          Saved Addresses
-                        </CardTitle>
-                        <CardDescription>
-                          Manage your delivery addresses
-                        </CardDescription>
-                      </div>
-                      <Button className="bg-blue-600 hover:bg-blue-700">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add New Address
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-12">
-                      <div className="w-24 h-24 mx-auto mb-4 bg-blue-50 rounded-full flex items-center justify-center">
-                        <MapPin className="h-10 w-10 text-blue-600" />
-                      </div>
-                      <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                        No Saved Addresses
-                      </h3>
-                      <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                        You haven't saved any addresses yet. Add your first
-                        address to make checkout faster.
+          {/* Other Tab Contents (Addresses & Settings - same as before) */}
+          {activeTab === "addresses" && (
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  Addresses
+                </CardTitle>
+                <CardDescription>
+                  Manage your shipping addresses
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8">
+                  <MapPin className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No addresses saved</h3>
+                  <p className="text-gray-600 mb-4">
+                    Add your first shipping address to make checkout faster.
+                  </p>
+                  <Button className="bg-blue-600 hover:bg-blue-700">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Address
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === "settings" && (
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  Settings
+                </CardTitle>
+                <CardDescription>
+                  Manage your account settings and preferences
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <h4 className="font-medium text-gray-900 mb-2">Notifications</h4>
+                    <p className="text-sm text-gray-600">Manage your email notifications</p>
+                  </div>
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <h4 className="font-medium text-gray-900 mb-2">Privacy</h4>
+                    <p className="text-sm text-gray-600">Control your privacy settings</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Cancel Order Confirmation Modal */}
+          {showCancelConfirm && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <Card className="w-full max-w-md border-0 shadow-2xl">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center gap-3 text-red-600">
+                    <AlertTriangle className="h-6 w-6" />
+                    <CardTitle className="text-xl">Cancel Order?</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Are you sure you want to cancel this order? This action cannot be undone.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <p className="text-sm text-red-700 font-medium">
+                        Order #{orders.find(o => o.id === showCancelConfirm)?.id?.slice(-8) || 'N/A'}
                       </p>
-                      <Button className="bg-blue-600 hover:bg-blue-700">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Your First Address
-                      </Button>
+                      <p className="text-sm text-red-600">
+                        Total: {formatPrice(orders.find(o => o.id === showCancelConfirm)?.total || 0)}
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Settings Tab */}
-              {activeTab === "settings" && (
-                <Card className="border-0 shadow-lg bg-white">
-                  <CardHeader className="pb-4">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <CardTitle className="text-2xl font-bold text-gray-900">
-                          Account Settings
-                        </CardTitle>
-                        <CardDescription>
-                          Manage your account preferences and notifications
-                        </CardDescription>
-                      </div>
+                    <div className="flex gap-3 pt-2">
                       <Button
                         variant="outline"
-                        className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                        className="flex-1 border-gray-300"
+                        onClick={() => setShowCancelConfirm(null)}
+                        disabled={cancellingOrderId === showCancelConfirm}
                       >
-                        <Edit3 className="h-4 w-4 mr-2" />
-                        Edit Profile
+                        Keep Order
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
+                        onClick={() => handleCancelOrder(showCancelConfirm)}
+                        disabled={cancellingOrderId === showCancelConfirm}
+                      >
+                        {cancellingOrderId === showCancelConfirm ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin mr-2" />
+                            Cancelling...
+                          </>
+                        ) : (
+                          'Yes, Cancel Order'
+                        )}
                       </Button>
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-6">
-                      {/* Notification Settings */}
-                      <div className="border border-gray-200 rounded-2xl p-6">
-                        <h4 className="font-semibold text-gray-900 mb-4">
-                          Notification Preferences
-                        </h4>
-                        <div className="space-y-4">
-                          {[
-                            {
-                              label: "Order Updates",
-                              description:
-                                "Get notified about order status changes",
-                            },
-                            {
-                              label: "Promotional Emails",
-                              description: "Receive offers and discounts",
-                            },
-                            {
-                              label: "Product Recommendations",
-                              description: "Personalized product suggestions",
-                            },
-                            {
-                              label: "Security Alerts",
-                              description: "Important security notifications",
-                            },
-                          ].map((item, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center justify-between"
-                            >
-                              <div>
-                                <p className="font-medium text-gray-900">
-                                  {item.label}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                  {item.description}
-                                </p>
-                              </div>
-                              <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  className="sr-only peer"
-                                  defaultChecked
-                                />
-                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Account Actions */}
-                      <div className="border border-gray-200 rounded-2xl p-6">
-                        <h4 className="font-semibold text-gray-900 mb-4">
-                          Account Actions
-                        </h4>
-                        <div className="grid gap-3">
-                          <Button
-                            variant="outline"
-                            className="justify-start border-gray-300"
-                          >
-                            Change Password
-                          </Button>
-                          <Button
-                            variant="outline"
-                            className="justify-start border-gray-300"
-                          >
-                            Privacy Settings
-                          </Button>
-                          <Button
-                            variant="outline"
-                            className="justify-start border-red-300 text-red-600 hover:bg-red-50"
-                          >
-                            Delete Account
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </ProtectedRoute>

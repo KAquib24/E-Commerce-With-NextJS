@@ -1,4 +1,4 @@
-// src/lib/firestore.ts
+// src/lib/firestore.ts - CLEANED VERSION
 import { db } from "@/lib/firebase";
 import { 
   doc, 
@@ -28,12 +28,7 @@ export interface Order {
   total: number;
   status: "pending" | "paid" | "shipped" | "delivered" | "cancelled";
   customerEmail: string;
-  shippingAddress: {
-    name: string;
-    address: string;
-    city: string;
-    pincode: string;
-  };
+  shippingAddress: any;
   createdAt: Date;
   stripeSessionId?: string;
 }
@@ -157,19 +152,6 @@ export async function updateOrderStatus(orderId: string, status: string): Promis
 
 // ========== WISHLIST FUNCTIONS ==========
 
-// Helper function to clean product data
-const cleanProductData = (product: any) => {
-  return {
-    id: product.id,
-    name: product.name,
-    price: product.price,
-    image: product.image,
-    rating: product.rating || 0,
-    category: product.category || "",
-    addedAt: new Date().toISOString()
-  };
-};
-
 // Wishlist functions
 export async function addToWishlist(userId: string, product: any) {
   try {
@@ -211,7 +193,6 @@ export async function fetchWishlist(userId: string) {
     const wishlistItems = querySnapshot.docs.map((doc) => {
       const data = doc.data();
       
-      // Ensure all required fields are present with proper fallbacks
       return {
         id: doc.id,
         name: data.name || 'Unknown Product',

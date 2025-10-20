@@ -1,4 +1,5 @@
 // src/app/admin/layout.tsx
+"use client";
 import AdminRoute from "@/components/AdminRoute";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -10,8 +11,25 @@ import {
   Settings,
   LogOut 
 } from "lucide-react";
+import { useState, useEffect } from "react";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  if (!isClient) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-gray-500">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <AdminRoute>
       <div className="flex min-h-screen bg-gray-50">

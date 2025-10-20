@@ -1,4 +1,4 @@
-// src/components/admin/EditProductModal.tsx
+// src/components/admin/EditorProductModel.tsx - COMPLETE FIXED VERSION
 "use client";
 
 import { useState, useEffect } from "react";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { X } from "lucide-react";
+import { X, Users, Loader2 } from "lucide-react";
 
 interface EditProductModalProps {
   isOpen: boolean;
@@ -51,15 +51,19 @@ export default function EditProductModal({ isOpen, onClose, onProductUpdated, pr
     setLoading(true);
 
     try {
-      await updateProduct(product.id!, {
-        name: formData.name,
-        description: formData.description,
-        price: parseFloat(formData.price),
-        category: formData.category,
-        stock: parseInt(formData.stock) || 0,
-        rating: parseFloat(formData.rating) || 0,
-        imageUrl: formData.imageUrl
-      }, imageFile || undefined);
+      await updateProduct(
+        product.id!, 
+        {
+          name: formData.name,
+          description: formData.description,
+          price: parseFloat(formData.price),
+          category: formData.category,
+          stock: parseInt(formData.stock) || 0,
+          rating: parseFloat(formData.rating) || 0,
+          imageUrl: formData.imageUrl
+        }, 
+        imageFile || undefined
+      );
 
       onProductUpdated();
       onClose();
@@ -85,6 +89,16 @@ export default function EditProductModal({ isOpen, onClose, onProductUpdated, pr
           </Button>
         </CardHeader>
         <CardContent>
+          {/* Vendor Info Display */}
+          {product.vendorName && (
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Users className="h-4 w-4" />
+                <span>Vendor: <strong>{product.vendorName}</strong></span>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -94,6 +108,7 @@ export default function EditProductModal({ isOpen, onClose, onProductUpdated, pr
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -106,6 +121,7 @@ export default function EditProductModal({ isOpen, onClose, onProductUpdated, pr
                   value={formData.price}
                   onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -116,6 +132,7 @@ export default function EditProductModal({ isOpen, onClose, onProductUpdated, pr
                   value={formData.category}
                   onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -127,6 +144,7 @@ export default function EditProductModal({ isOpen, onClose, onProductUpdated, pr
                   value={formData.stock}
                   onChange={(e) => setFormData(prev => ({ ...prev, stock: e.target.value }))}
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -140,6 +158,7 @@ export default function EditProductModal({ isOpen, onClose, onProductUpdated, pr
                   max="5"
                   value={formData.rating}
                   onChange={(e) => setFormData(prev => ({ ...prev, rating: e.target.value }))}
+                  disabled={loading}
                 />
               </div>
 
@@ -150,6 +169,7 @@ export default function EditProductModal({ isOpen, onClose, onProductUpdated, pr
                   type="file"
                   accept="image/*"
                   onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -160,6 +180,7 @@ export default function EditProductModal({ isOpen, onClose, onProductUpdated, pr
                 id="edit-imageUrl"
                 value={formData.imageUrl}
                 onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
+                disabled={loading}
               />
             </div>
 
@@ -182,15 +203,23 @@ export default function EditProductModal({ isOpen, onClose, onProductUpdated, pr
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 rows={4}
                 required
+                disabled={loading}
               />
             </div>
 
             <div className="flex justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={handleClose}>
+              <Button type="button" variant="outline" onClick={handleClose} disabled={loading}>
                 Cancel
               </Button>
               <Button type="submit" disabled={loading}>
-                {loading ? "Updating..." : "Update Product"}
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Update Product"
+                )}
               </Button>
             </div>
           </form>

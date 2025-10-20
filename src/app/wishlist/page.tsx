@@ -1,11 +1,11 @@
+// src/app/wishlist/page.tsx
 "use client";
 
 import { useWishlist } from "@/hooks/useWishlist";
 import useAuth from "@/hooks/useAuth";
-import ProductCard from "@/components/cards/ProductCard";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Heart, ShoppingBag, ArrowLeft, Loader2 } from "lucide-react";
+import { Heart, ShoppingBag, ArrowLeft, Loader2, Star, ShoppingCart, Eye } from "lucide-react";
 import { useEffect } from "react";
 
 export default function WishlistPage() {
@@ -14,20 +14,21 @@ export default function WishlistPage() {
     wishlistItems, 
     loading: wishlistLoading, 
     error, 
-    hasWishlistItems 
+    hasWishlistItems,
+    removeFromWishlist 
   } = useWishlist();
 
-  // Debug logs to help identify issues
+  // Debug log
   useEffect(() => {
-    console.log("Wishlist Debug:", {
-      user,
+    console.log("🔍 Wishlist Page State:", {
+      user: !!user,
       authLoading,
-      wishlistItems,
+      wishlistItemsCount: wishlistItems.length,
       wishlistLoading,
-      error,
+      error: error || null,
       hasWishlistItems
     });
-  }, [user, authLoading, wishlistItems, wishlistLoading, error, hasWishlistItems]);
+  }, [user, authLoading, wishlistItems.length, wishlistLoading, error, hasWishlistItems]);
 
   // Show loading state for authentication
   if (authLoading) {
@@ -52,7 +53,10 @@ export default function WishlistPage() {
         <div className="container mx-auto px-4 max-w-4xl">
           <div className="mb-6">
             <Link href="/products">
-              <Button variant="ghost" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+              <Button 
+                variant="ghost" 
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+              >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Products
               </Button>
@@ -83,7 +87,10 @@ export default function WishlistPage() {
               </Link>
               
               <Link href="/auth/register" className="flex-1 sm:flex-none">
-                <Button variant="outline" className="w-full border-blue-600 text-blue-600 hover:bg-blue-50 py-3">
+                <Button 
+                  variant="outline" 
+                  className="w-full border-blue-600 text-blue-600 hover:bg-blue-50 py-3"
+                >
                   Create New Account
                 </Button>
               </Link>
@@ -125,7 +132,10 @@ export default function WishlistPage() {
         <div className="container mx-auto px-4 max-w-4xl">
           <div className="mb-6">
             <Link href="/products">
-              <Button variant="ghost" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+              <Button 
+                variant="ghost" 
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+              >
                 <ArrowLeft className="h-4 w-4" />
                 Back to Products
               </Button>
@@ -154,7 +164,10 @@ export default function WishlistPage() {
               </Button>
               
               <Link href="/products">
-                <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50 py-3">
+                <Button 
+                  variant="outline" 
+                  className="border-blue-600 text-blue-600 hover:bg-blue-50 py-3"
+                >
                   Browse Products
                 </Button>
               </Link>
@@ -173,7 +186,11 @@ export default function WishlistPage() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <Link href="/products">
-                <Button variant="ghost" size="icon" className="text-gray-600 hover:text-gray-900">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="text-gray-600 hover:text-gray-900"
+                >
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
               </Link>
@@ -236,7 +253,10 @@ export default function WishlistPage() {
               </Link>
               
               <Link href="/">
-                <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50 py-3 px-8">
+                <Button 
+                  variant="outline" 
+                  className="border-blue-600 text-blue-600 hover:bg-blue-50 py-3 px-8"
+                >
                   Back to Home
                 </Button>
               </Link>
@@ -252,25 +272,113 @@ export default function WishlistPage() {
               </p>
               
               <div className="flex items-center gap-4">
-                <Button variant="outline" className="text-gray-600 hover:text-gray-900">
+                <Button 
+                  variant="outline" 
+                  className="text-gray-600 hover:text-gray-900"
+                >
                   Share Wishlist
                 </Button>
               </div>
             </div>
 
-            {/* Products Grid */}
+            {/* Products Grid with Fallback Display */}
             <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {wishlistItems.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  id={product.id}
-                  name={product.name}
-                  image={product.image}
-                  price={product.price}
-                  rating={product.rating || 0}
-                  category={product.category || ""}
-                  showWishlistButton={true}
-                />
+                <div key={product.id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden group border border-gray-200">
+                  {/* Product Image with Fallback */}
+                  <div className="aspect-square bg-gray-100 relative overflow-hidden">
+                    {product.image ? (
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          // If image fails to load, show fallback
+                          e.currentTarget.style.display = 'none';
+                          const fallback = e.currentTarget.parentElement?.querySelector('.image-fallback') as HTMLElement;
+                          if (fallback) fallback.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    
+                    {/* Fallback when no image or image fails */}
+                    <div 
+                      className={`image-fallback w-full h-full flex items-center justify-center ${product.image ? 'hidden' : 'flex'} bg-gradient-to-br from-gray-200 to-gray-300`}
+                    >
+                      <div className="text-center">
+                        <ShoppingBag className="h-16 w-16 text-gray-400 mx-auto mb-3" />
+                        <span className="text-gray-500 text-sm font-medium">No Image Available</span>
+                      </div>
+                    </div>
+
+                    {/* Remove from Wishlist Button */}
+                    <button
+                      onClick={() => removeFromWishlist(product.id)}
+                      className="absolute top-3 right-3 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"
+                      title="Remove from wishlist"
+                    >
+                      <Heart className="h-5 w-5 fill-red-500 text-red-500" />
+                    </button>
+
+                    {/* Category Badge */}
+                    {product.category && (
+                      <div className="absolute top-3 left-3">
+                        <span className="px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded-full">
+                          {product.category}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Product Info */}
+                  <div className="p-4">
+                    <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                      {product.name}
+                    </h3>
+                    
+                    {/* Rating */}
+                    {product.rating && product.rating > 0 && (
+                      <div className="flex items-center gap-1 mb-2">
+                        <div className="flex items-center gap-0.5">
+                          {[...Array(5)].map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`h-4 w-4 ${
+                                i < Math.floor(product.rating || 0)
+                                  ? "fill-yellow-400 text-yellow-400"
+                                  : "fill-gray-300 text-gray-300"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-sm text-gray-600">({product.rating})</span>
+                      </div>
+                    )}
+
+                    {/* Price */}
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-xl font-bold text-blue-600">
+                        ₹{product.price}
+                      </p>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-2">
+                      <Button
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 text-sm"
+                      >
+                        <ShoppingCart className="h-4 w-4 mr-2" />
+                        Add to Cart
+                      </Button>
+                      <Link href={`/products/${product.id}`} className="flex-1">
+                        <Button variant="outline" className="w-full py-2 text-sm border-gray-300 hover:border-blue-500">
+                          <Eye className="h-4 w-4 mr-2" />
+                          Details
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
 
@@ -282,7 +390,10 @@ export default function WishlistPage() {
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link href="/products">
-                  <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
+                  <Button 
+                    variant="outline" 
+                    className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                  >
                     Discover More Products
                   </Button>
                 </Link>

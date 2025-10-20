@@ -1,4 +1,4 @@
-// src/app/admin/products/page.tsx
+// src/app/admin/products/page.tsx - COMPLETE UPDATED VERSION
 "use client";
 
 import { useEffect, useState } from "react";
@@ -6,14 +6,24 @@ import { Product, getAllProducts, deleteProduct } from "@/lib/products";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Edit, Trash2, Package, Loader2 } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Package, Loader2, Filter, Users } from "lucide-react";
 import AddProductModal from "@/components/admin/AddProductModel";
 import EditProductModal from "@/components/admin/EditorProductModel";
+
+// Vendor data - you can fetch this from Firestore later
+const VENDORS = [
+  { id: "all", name: "All Vendors" },
+  { id: "admin", name: "Admin Store" },
+  { id: "vendor1", name: "Sports Corner" },
+  { id: "vendor2", name: "Electronics Hub" },
+  { id: "vendor3", name: "Fashion Palace" },
+];
 
 export default function AdminProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedVendor, setSelectedVendor] = useState<string>("all");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -39,12 +49,24 @@ export default function AdminProducts() {
   }, []);
 
   useEffect(() => {
-    const filtered = products.filter(product =>
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.category.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    let filtered = products;
+    
+    // Apply vendor filter
+    if (selectedVendor !== "all") {
+      filtered = filtered.filter(product => product.vendorId === selectedVendor);
+    }
+    
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(product =>
+        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.vendorName?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
     setFilteredProducts(filtered);
-  }, [searchTerm, products]);
+  }, [searchTerm, selectedVendor, products]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this product? This action cannot be undone.")) {
@@ -79,7 +101,7 @@ export default function AdminProducts() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Product Management</h1>
-          <p className="text-gray-600 mt-2">Manage your product catalog</p>
+          <p className="text-gray-600 mt-2">Manage products from all vendors</p>
         </div>
         <Button 
           onClick={() => setShowAddModal(true)}
@@ -90,17 +112,36 @@ export default function AdminProducts() {
         </Button>
       </div>
 
-      {/* Search */}
+      {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Search products by name or category..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search products by name, category, or vendor..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Vendor Filter */}
+            <div className="flex items-center gap-3">
+              <Filter className="h-4 w-4 text-gray-400" />
+              <select 
+                value={selectedVendor}
+                onChange={(e) => setSelectedVendor(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {VENDORS.map(vendor => (
+                  <option key={vendor.id} value={vendor.id}>
+                    {vendor.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -108,7 +149,14 @@ export default function AdminProducts() {
       {/* Products Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Products ({filteredProducts.length})</CardTitle>
+          <CardTitle>
+            Products ({filteredProducts.length})
+            {selectedVendor !== "all" && (
+              <span className="text-sm font-normal text-gray-600 ml-2">
+                • Filtered by: {VENDORS.find(v => v.id === selectedVendor)?.name}
+              </span>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -125,7 +173,7 @@ export default function AdminProducts() {
               <p className="text-gray-600 mb-4">
                 {products.length === 0 
                   ? "Start building your product catalog by adding your first product."
-                  : "Try adjusting your search terms."
+                  : "Try adjusting your search terms or vendor filter."
                 }
               </p>
               {products.length === 0 && (
@@ -144,6 +192,7 @@ export default function AdminProducts() {
                 <thead>
                   <tr className="bg-gray-50">
                     <th className="py-3 px-4 text-left text-sm font-semibold text-gray-900 border-b">Product</th>
+                    <th className="py-3 px-4 text-left text-sm font-semibold text-gray-900 border-b">Vendor</th>
                     <th className="py-3 px-4 text-left text-sm font-semibold text-gray-900 border-b">Category</th>
                     <th className="py-3 px-4 text-left text-sm font-semibold text-gray-900 border-b">Price</th>
                     <th className="py-3 px-4 text-left text-sm font-semibold text-gray-900 border-b">Stock</th>
@@ -170,6 +219,14 @@ export default function AdminProducts() {
                               {product.description?.substring(0, 50)}...
                             </p>
                           </div>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm text-gray-700">
+                            {product.vendorName || "Admin"}
+                          </span>
                         </div>
                       </td>
                       <td className="py-4 px-4">

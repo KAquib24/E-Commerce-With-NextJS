@@ -1,13 +1,14 @@
 // src/redux/slices/ordersSlice.ts
-import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { getOrdersByUserId } from "@/lib/firestore"; // Now this exists!
+import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, doc, updateDoc, addDoc, query, where, orderBy } from "firebase/firestore";
 
 export interface OrderItem {
   id: string;
   name: string;
   price: number;
-  image: string;
   quantity: number;
+  image?: string;
 }
 
 export interface Order {
@@ -15,17 +16,19 @@ export interface Order {
   userId: string;
   items: OrderItem[];
   total: number;
-  status: "pending" | "paid" | "shipped" | "delivered" | "cancelled";
-  customerEmail: string;
-  shippingAddress: {
+  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+  customerEmail?: string;
+  shippingAddress?: {
     name: string;
     address: string;
     city: string;
     pincode: string;
-    phone?: string;
+    phone: string;
   };
   createdAt: string;
+  updatedAt: string;
   stripeSessionId?: string;
+  deliveredAt?: string;
 }
 
 interface OrdersState {
@@ -40,17 +43,48 @@ const initialState: OrdersState = {
   error: null,
 };
 
-export const getOrders = createAsyncThunk(
+// ✅ Get orders for a user
+export const getOrders = createAsyncThunk<Order[], string>(
   "orders/getOrders",
-  async (userId: string, { rejectWithValue }) => {
-    try {
-      const orders = await getOrdersByUserId(userId);
-      console.log("✅ Orders fetched in slice:", orders);
-      return orders;
-    } catch (error: any) {
-      console.error("❌ Error fetching orders in slice:", error);
-      return rejectWithValue(error.message);
-    }
+  async (userId: string) => {
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc")
+    );
+    const querySnapshot = await getDocs(ordersQuery);
+    const orders: Order[] = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    } as Order));
+    return orders;
+  }
+);
+
+// ✅ Cancel order
+export const cancelOrder = createAsyncThunk<string, { orderId: string; userId: string }>(
+  "orders/cancelOrder",
+  async ({ orderId }) => {
+    const orderRef = doc(db, "orders", orderId);
+    await updateDoc(orderRef, {
+      status: "cancelled",
+      updatedAt: new Date().toISOString(),
+      cancelledAt: new Date().toISOString(),
+    });
+    return orderId;
+  }
+);
+
+// ✅ Add new order
+export const addOrder = createAsyncThunk<Order, Order>(
+  "orders/addOrder",
+  async (orderData: Order) => {
+    const docRef = await addDoc(collection(db, "orders"), {
+      ...orderData,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    return { ...orderData, id: docRef.id };
   }
 );
 
@@ -58,42 +92,65 @@ const ordersSlice = createSlice({
   name: "orders",
   initialState,
   reducers: {
-    addOrder: (state, action) => {
-      state.orders.unshift(action.payload);
-      console.log("✅ Order added to Redux:", action.payload.id);
-    },
-    clearOrders: (state) => {
+    clearOrders: state => {
       state.orders = [];
+      state.loading = false;
       state.error = null;
     },
-    clearError: (state) => {
-      state.error = null;
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
     },
   },
-  extraReducers: (builder) => {
+  extraReducers: builder => {
     builder
-      .addCase(getOrders.pending, (state) => {
+      // Get Orders
+      .addCase(getOrders.pending, state => {
         state.loading = true;
         state.error = null;
       })
       .addCase(getOrders.fulfilled, (state, action) => {
         state.loading = false;
-        state.orders = action.payload.map((order) => ({
-          ...order,
-          id: order.id || `order-${Date.now()}`,
-          createdAt:
-            typeof order.createdAt === "string"
-              ? order.createdAt
-              : order.createdAt.toISOString(),
-        }));
+        state.orders = action.payload;
       })
       .addCase(getOrders.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string;
-        console.error("❌ Failed to fetch orders in slice:", action.payload);
+        state.error = action.error.message || "Failed to fetch orders";
+      })
+
+      // Cancel Order
+      .addCase(cancelOrder.pending, state => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(cancelOrder.fulfilled, (state, action) => {
+        state.loading = false;
+        const cancelledOrderId = action.payload;
+        const order = state.orders.find(o => o.id === cancelledOrderId);
+        if (order) {
+          order.status = "cancelled";
+          order.updatedAt = new Date().toISOString();
+        }
+      })
+      .addCase(cancelOrder.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || "Failed to cancel order";
+      })
+
+      // Add Order
+      .addCase(addOrder.pending, state => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(addOrder.fulfilled, (state, action) => {
+        state.loading = false;
+        state.orders.unshift(action.payload); // add to top of list
+      })
+      .addCase(addOrder.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || "Failed to add order";
       });
   },
 });
 
-export const { addOrder, clearOrders, clearError } = ordersSlice.actions;
+export const { clearOrders, setLoading } = ordersSlice.actions;
 export default ordersSlice.reducer;

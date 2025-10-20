@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
-import { useSelector } from "react-redux";
-import { RootState } from "@/redux/store";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState, AppDispatch } from "@/redux/store";
 import CheckoutSummary from "./CheckoutSummary";
 import CheckoutForm from "./CheckoutForm";
 import CouponInput from "./components/CoupanInput";
@@ -12,8 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Shield, Lock, Truck, ArrowLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { useDispatch } from "react-redux";
-import { addOrder } from "@/redux/slices/ordersSlice";
+import { addOrder } from "@/redux/slices/ordersSlice"; // ✅ Correct named import
+// At the top of your Checkout page (page.tsx)
+import { Order } from "@/redux/slices/ordersSlice";
+
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -27,21 +29,22 @@ interface CheckoutFormData {
 }
 
 export default function CheckoutPage() {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>(); // ✅ Typed dispatch
   const { items, total, discount } = useSelector((state: RootState) => state.cart);
   const { user } = useAuth();
+
   const [form, setForm] = useState<CheckoutFormData>({
-    name: user?.displayName || "", 
-    email: user?.email || "", 
-    address: "", 
-    city: "", 
+    name: user?.displayName || "",
+    email: user?.email || "",
+    address: "",
+    city: "",
     pincode: "",
-    phone: ""
+    phone: "",
   });
   const [loading, setLoading] = useState(false);
   const [activeStep, setActiveStep] = useState(1);
 
-  // Calculate final total with discount
+  // ✅ Calculate totals
   const finalTotal = total - discount;
   const shipping = finalTotal > 50 ? 0 : 9.99;
   const tax = (finalTotal + shipping) * 0.1;
@@ -49,13 +52,13 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Form validation
+
+    // ✅ Form validation
     if (!form.name || !form.email || !form.address || !form.city || !form.pincode) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields",
-        variant: "destructive"
+        description: "Please fill in all required fields.",
+        variant: "destructive",
       });
       return;
     }
@@ -63,8 +66,8 @@ export default function CheckoutPage() {
     if (items.length === 0) {
       toast({
         title: "Empty Cart",
-        description: "Your cart is empty. Add items to proceed.",
-        variant: "destructive"
+        description: "Add some products before proceeding.",
+        variant: "destructive",
       });
       return;
     }
@@ -72,15 +75,13 @@ export default function CheckoutPage() {
     setLoading(true);
 
     try {
-      console.log('🔄 Sending checkout request...');
+      console.log("🔄 Sending checkout request...");
 
-      const response = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const response = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: items.map(item => ({
+          items: items.map((item) => ({
             name: item.name,
             image: item.image,
             price: item.price,
@@ -94,58 +95,62 @@ export default function CheckoutPage() {
             pincode: form.pincode,
             phone: form.phone,
           },
-          userId: user?.uid || 'guest',
+          userId: user?.uid || "guest",
           total: grandTotal,
         }),
       });
 
-      console.log('📨 Response status:', response.status);
-      
+      console.log("📨 Response status:", response.status);
+
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('❌ API error response:', errorData);
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        console.error("❌ API error:", errorData);
+        throw new Error(errorData.error || "Checkout API failed");
       }
 
       const data = await response.json();
-      console.log('✅ Checkout session created:', data);
+      console.log("✅ Checkout session created:", data);
 
-      // Add order to Redux immediately for better UX
-      if (user?.uid) {
-        const newOrder = {
-          id: data.orderId || `temp-${Date.now()}`,
-          userId: user.uid,
-          items: items,
-          total: grandTotal,
-          status: 'pending',
-          customerEmail: form.email,
-          shippingAddress: {
-            name: form.name,
-            address: form.address,
-            city: form.city,
-            pincode: form.pincode,
-            phone: form.phone,
-          },
-          createdAt: new Date().toISOString(),
-          stripeSessionId: data.id,
-        };
-        
-        console.log('🔄 Adding order to Redux:', newOrder.id);
-        dispatch(addOrder(newOrder));
-      }
+      // ✅ Add order to Redux for instant feedback
+      // Inside handleSubmit after receiving data from API
+if (user?.uid) {
+  const now = new Date().toISOString();
 
-      // Redirect to Stripe Checkout
+  const newOrder: Order = {
+    id: data.orderId || `temp-${Date.now()}`,
+    userId: user.uid,
+    items,
+    total: grandTotal,
+    status: "pending",
+    customerEmail: form.email,
+    shippingAddress: {
+      name: form.name,
+      address: form.address,
+      city: form.city,
+      pincode: form.pincode,
+      phone: form.phone,
+    },
+    createdAt: now,
+    updatedAt: now, // ✅ Add this field
+    stripeSessionId: data.id,
+  };
+
+  dispatch(addOrder(newOrder));
+}
+
+
+      // ✅ Redirect to Stripe Checkout
       if (data.url) {
         window.location.href = data.url;
       } else {
         window.location.href = `https://checkout.stripe.com/pay/${data.id}`;
       }
     } catch (error) {
-      console.error('❌ Full checkout error:', error);
+      console.error("❌ Checkout failed:", error);
       toast({
         title: "Checkout Failed",
-        description: error instanceof Error ? error.message : 'Unknown error occurred',
-        variant: "destructive"
+        description: error instanceof Error ? error.message : "Unknown error occurred.",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -171,7 +176,10 @@ export default function CheckoutPage() {
                 </Button>
               </Link>
               <Link href="/cart">
-                <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50 px-8 py-3 text-lg">
+                <Button
+                  variant="outline"
+                  className="border-blue-600 text-blue-600 hover:bg-blue-50 px-8 py-3 text-lg"
+                >
                   View Cart
                 </Button>
               </Link>
@@ -198,22 +206,26 @@ export default function CheckoutPage() {
           <p className="text-gray-600 text-lg">Complete your purchase with secure checkout</p>
         </div>
 
-        {/* Progress Steps */}
+        {/* Steps */}
         <div className="flex items-center justify-center mb-12">
           <div className="flex items-center w-full max-w-2xl">
-            <div className={`flex items-center ${activeStep >= 1 ? 'text-blue-600' : 'text-gray-400'}`}>
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
-                activeStep >= 1 ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300'
-              }`}>
+            <div className={`flex items-center ${activeStep >= 1 ? "text-blue-600" : "text-gray-400"}`}>
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
+                  activeStep >= 1 ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300"
+                }`}
+              >
                 1
               </div>
               <span className="ml-2 font-medium">Information</span>
             </div>
-            <div className={`flex-1 h-1 mx-4 ${activeStep >= 2 ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
-            <div className={`flex items-center ${activeStep >= 2 ? 'text-blue-600' : 'text-gray-400'}`}>
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
-                activeStep >= 2 ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300'
-              }`}>
+            <div className={`flex-1 h-1 mx-4 ${activeStep >= 2 ? "bg-blue-600" : "bg-gray-300"}`} />
+            <div className={`flex items-center ${activeStep >= 2 ? "text-blue-600" : "text-gray-400"}`}>
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
+                  activeStep >= 2 ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300"
+                }`}
+              >
                 2
               </div>
               <span className="ml-2 font-medium">Payment</span>
@@ -222,7 +234,7 @@ export default function CheckoutPage() {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main Content */}
+          {/* Left Side */}
           <div className="lg:col-span-2 space-y-6">
             {/* Trust Badges */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
@@ -237,13 +249,11 @@ export default function CheckoutPage() {
                     <span className="font-medium">256-bit SSL Encrypted</span>
                   </div>
                 </div>
-                <div className="text-sm text-gray-500">
-                  🔒 Your payment info is protected
-                </div>
+                <div className="text-sm text-gray-500">🔒 Your payment info is protected</div>
               </div>
             </div>
 
-            {/* Coupon Section */}
+            {/* Coupon */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
               <CouponInput />
             </div>
@@ -253,14 +263,13 @@ export default function CheckoutPage() {
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Shipping Information</h2>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <CheckoutForm form={form} setForm={setForm} />
-                
+
                 {/* Payment Button */}
                 <div className="pt-6 border-t border-gray-200">
                   <Button
                     type="submit"
-                    disabled={loading || items.length === 0}
+                    disabled={loading}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 text-lg font-semibold rounded-xl transition-all duration-300 transform hover:scale-[1.02] shadow-lg hover:shadow-xl"
-                    size="lg"
                   >
                     {loading ? (
                       <div className="flex items-center gap-2">
@@ -274,19 +283,18 @@ export default function CheckoutPage() {
                       </div>
                     )}
                   </Button>
-                  
                   <p className="text-center text-sm text-gray-500 mt-4">
-                    By completing your purchase, you agree to our Terms of Service and Privacy Policy
+                    By completing your purchase, you agree to our Terms of Service and Privacy Policy.
                   </p>
                 </div>
               </form>
             </div>
           </div>
-          
-          {/* Order Summary Sidebar */}
+
+          {/* Right Side */}
           <div className="space-y-6">
-            <CheckoutSummary 
-              items={items} 
+            <CheckoutSummary
+              items={items}
               total={total}
               discount={discount}
               finalTotal={finalTotal}
@@ -294,29 +302,6 @@ export default function CheckoutPage() {
               tax={tax}
               grandTotal={grandTotal}
             />
-
-            {/* Additional Info */}
-            <div className="bg-white rounded-2xl shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">What's Included</h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center gap-3 text-green-600">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span>Free shipping on orders over $50</span>
-                </div>
-                <div className="flex items-center gap-3 text-blue-600">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span>30-day money-back guarantee</span>
-                </div>
-                <div className="flex items-center gap-3 text-purple-600">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                  <span>24/7 customer support</span>
-                </div>
-                <div className="flex items-center gap-3 text-orange-600">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                  <span>Secure payment processing</span>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

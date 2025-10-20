@@ -1,391 +1,556 @@
+// src/components/layout/Navbar.tsx - UPDATED VERSION
 "use client";
-
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { useTheme } from "@/context/ThemeContext";
-import { useState } from "react";
+import { useAdmin } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/use-toast";
-import { 
-  Heart, 
-  ShoppingCart, 
-  User, 
-  Menu, 
-  X, 
-  Moon, 
-  Sun,
+import { Input } from "@/components/ui/input";
+import {
   Search,
-  Package,
+  ShoppingCart,
+  User,
+  Menu,
+  Shield,
   LogOut,
-  Settings,
   Home,
-  ShoppingBag,
-  Star
+  Package,
+  Heart,
+  History,
+  X,
+  Bell,
+  Store
 } from "lucide-react";
-import NotificationBell from "../ui/NotificationBell";
+import { useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
-  const [isOpen, setIsOpen] = useState(false);
+  const { isAdmin, checking, needsUserDoc } = useAdmin(); // Add needsUserDoc
   const [searchQuery, setSearchQuery] = useState("");
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [cartItemsCount, setCartItemsCount] = useState(0);
+  const router = useRouter();
+  const pathname = usePathname();
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      toast({ title: "Logged out successfully" });
-      setIsOpen(false);
-    } catch (error: any) {
-      toast({ title: error.message, variant: "destructive" });
-    }
-  };
+  // Mock cart items count - replace with actual cart context
+  useEffect(() => {
+    // This would come from your cart context
+    setCartItemsCount(3); // Mock data
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      // Implement search functionality
-      console.log("Searching for:", searchQuery);
+      router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchQuery("");
+      setIsMenuOpen(false);
+      setIsSearchOpen(false);
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setIsMenuOpen(false);
+      router.push("/");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
+  // SMART ADMIN NAVIGATION FUNCTION
+  const handleAdminNavigation = () => {
+    console.log("🔄 Admin navigation clicked:", {
+      isAdmin,
+      needsUserDoc,
+      checking,
+    });
+
+    if (checking) {
+      console.log("⏳ Still checking admin status...");
+      return;
+    }
+
+    if (needsUserDoc) {
+      console.log("📄 No admin document found, redirecting to create-user-doc");
+      router.push("/create-user-doc");
+    } else if (isAdmin) {
+      console.log("✅ User is admin, redirecting to admin panel");
+      router.push("/admin");
+    } else {
+      console.log("❌ User is not admin, showing access denied");
+      alert("You need admin privileges to access this section.");
+    }
+
+    setIsMenuOpen(false);
+    setIsSearchOpen(false);
+  };
+
+  const navigateTo = (path: string) => {
+    router.push(path);
+    setIsMenuOpen(false);
+    setIsSearchOpen(false);
+  };
+
+  const isActivePath = (path: string) => {
+    return pathname === path;
+  };
+
+  // Quick actions for mobile
+  const quickActions = [
+    { icon: Home, label: "Home", path: "/" },
+    { icon: Package, label: "Products", path: "/products" },
+    { icon: ShoppingCart, label: "Cart", path: "/cart", badge: cartItemsCount },
+    { icon: Heart, label: "Wishlist", path: "/wishlist" },
+    { icon: History, label: "Orders", path: "/orders" },
+  ];
+
+  // Show admin link to all logged-in users, but handle navigation smartly
+  const shouldShowAdminLink = user && !checking;
+
   return (
-    <nav className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm relative">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          
-          {/* Left Section - Logo & Navigation */}
-          <div className="flex items-center gap-8">
-            {/* Logo */}
-            <Link
-              href="/"
-              className="flex items-center gap-2 text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent hover:scale-105 transition-transform"
-            >
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">🛍️</span>
-              </div>
-              ShopSmart
-            </Link>
+    <>
+      <nav className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            {/* Logo and Mobile Menu */}
+            <div className="flex items-center space-x-4">
+              {/* Mobile Menu Button */}
+              <Button
+                variant="ghost"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="md:hidden p-2"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+
+              {/* Logo */}
+              <Link href="/" className="flex items-center space-x-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">S</span>
+                </div>
+                <span className="font-bold text-xl text-gray-900 hidden sm:block">
+                  ShopSmart
+                </span>
+              </Link>
+            </div>
 
             {/* Desktop Navigation */}
-            <div className="hidden lg:flex items-center gap-6">
-              <Link
-                href="/"
-                className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors relative group"
+            <div className="hidden md:flex items-center space-x-1">
+              <Button
+                variant={isActivePath("/") ? "secondary" : "ghost"}
+                onClick={() => navigateTo("/")}
+                className="flex items-center space-x-2"
               >
-                <Home className="h-4 w-4 inline mr-1" />
-                Home
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-blue-600 group-hover:w-full transition-all duration-300"></span>
-              </Link>
-              
-              <Link
-                href="/products"
-                className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors relative group"
+                <Home className="h-4 w-4" />
+                <span>Home</span>
+              </Button>
+
+              <Button
+                variant={isActivePath("/products") ? "secondary" : "ghost"}
+                onClick={() => navigateTo("/products")}
+                className="flex items-center space-x-2"
               >
-                <ShoppingBag className="h-4 w-4 inline mr-1" />
-                Products
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-blue-600 group-hover:w-full transition-all duration-300"></span>
-              </Link>
-              
+                <Package className="h-4 w-4" />
+                <span>Products</span>
+              </Button>
+
               {user && (
                 <>
-                  <Link
-                    href="/cart"
-                    className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors relative group"
+                  <Button
+                    variant={isActivePath("/orders") ? "secondary" : "ghost"}
+                    onClick={() => navigateTo("/orders")}
+                    className="flex items-center space-x-2"
                   >
-                    <ShoppingCart className="h-4 w-4 inline mr-1" />
-                    Cart
-                    <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-blue-600 group-hover:w-full transition-all duration-300"></span>
-                  </Link>
-                  
-                  <Link
-                    href="/orders"
-                    className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors relative group"
+                    <History className="h-4 w-4" />
+                    <span>Orders</span>
+                  </Button>
+
+                  <Button
+                    variant={isActivePath("/wishlist") ? "secondary" : "ghost"}
+                    onClick={() => navigateTo("/wishlist")}
+                    className="flex items-center space-x-2"
                   >
-                    <Package className="h-4 w-4 inline mr-1" />
-                    My Orders
-                    <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-blue-600 group-hover:w-full transition-all duration-300"></span>
-                  </Link>
-                  
-                  <Link
-                    href="/wishlist"
-                    className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors relative group"
-                  >
-                    <Heart className="h-4 w-4 inline mr-1" />
-                    Wishlist
-                    <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-blue-600 group-hover:w-full transition-all duration-300"></span>
-                  </Link>
+                    <Heart className="h-4 w-4" />
+                    <span>Wishlist</span>
+                  </Button>
                 </>
               )}
             </div>
-          </div>
 
-          {/* Center Section - Search Bar */}
-          <div className="hidden md:flex flex-1 max-w-md mx-8">
-            <form onSubmit={handleSearch} className="w-full">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <input
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-              </div>
-            </form>
-          </div>
+            {/* Search Bar - Desktop */}
+            <div className="hidden md:flex flex-1 max-w-md mx-8">
+              <form onSubmit={handleSearch} className="flex w-full">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    type="text"
+                    placeholder="Search products..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 pr-4 w-full"
+                  />
+                </div>
+                <Button type="submit" className="ml-2">
+                  Search
+                </Button>
+              </form>
+            </div>
 
-          {/* Right Section - Actions */}
-          <div className="flex items-center gap-4">
-            
-            {/* Search Icon for Mobile */}
-            <button className="md:hidden p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-              <Search className="h-5 w-5" />
-            </button>
+            {/* Right Side Actions */}
+            <div className="flex items-center space-x-2">
+              {/* Mobile Search Button */}
+              <Button
+                variant="ghost"
+                onClick={() => setIsSearchOpen(true)}
+                className="md:hidden p-2"
+              >
+                <Search className="h-5 w-5" />
+              </Button>
 
-            {/* Theme Toggle */}
-            <Button
-              onClick={toggleTheme}
-              variant="ghost"
-              size="icon"
-              className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              {theme === "light" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-            </Button>
-
-            {/* Notification Bell */}
-            <NotificationBell />
-
-            {/* User Menu - Desktop */}
-            {user ? (
-              <div className="hidden md:flex items-center gap-3">
-                {/* Wishlist */}
-                <Link
-                  href="/wishlist"
-                  className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors relative group"
-                >
-                  <Heart className="h-5 w-5" />
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                    {/* Dynamic count would go here */}
-                  </span>
-                </Link>
+              {/* Desktop Actions */}
+              <div className="hidden md:flex items-center space-x-2">
+                {/* Admin Panel - Show to all logged-in users */}
+                {shouldShowAdminLink && (
+                  <Button
+                    variant={
+                      isActivePath("/admin") || isActivePath("/create-user-doc")
+                        ? "secondary"
+                        : "ghost"
+                    }
+                    onClick={handleAdminNavigation}
+                    className={`flex items-center space-x-2 ${
+                      needsUserDoc
+                        ? "text-orange-600 hover:text-orange-700"
+                        : isAdmin
+                        ? "text-blue-600 hover:text-blue-700"
+                        : "text-gray-600 hover:text-gray-700"
+                    }`}
+                  >
+                    <Shield className="h-4 w-4" />
+                    <span>
+                      {checking
+                        ? "Checking..."
+                        : needsUserDoc
+                        ? "Setup Admin"
+                        : isAdmin
+                        ? "Admin"
+                        : "Admin Access"}
+                    </span>
+                  </Button>
+                )}
 
                 {/* Cart */}
-                <Link
-                  href="/cart"
-                  className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors relative group"
+                <Button
+                  variant={isActivePath("/cart") ? "secondary" : "ghost"}
+                  onClick={() => navigateTo("/cart")}
+                  className="relative flex items-center space-x-2"
                 >
-                  <ShoppingCart className="h-5 w-5" />
-                  <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                    {/* Dynamic cart count would go here */}
-                  </span>
-                </Link>
+                  <ShoppingCart className="h-4 w-4" />
+                  <span>Cart</span>
+                  {cartItemsCount > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">
+                      {cartItemsCount}
+                    </span>
+                  )}
+                </Button>
 
-                {/* User Profile Dropdown */}
-                <div className="relative group">
+                {/* User Menu */}
+                {user ? (
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant={isActivePath("/profile") ? "secondary" : "ghost"}
+                      onClick={() => navigateTo("/profile")}
+                      className="flex items-center space-x-2"
+                    >
+                      <User className="h-4 w-4" />
+                      <span className="hidden lg:block">Profile</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleLogout}
+                      className="hidden sm:flex items-center space-x-2"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span>Logout</span>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => navigateTo("/auth/login")}
+                    >
+                      Login
+                    </Button>
+                    <Button
+                      onClick={() => navigateTo("/auth/register")}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      Sign Up
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile User Menu */}
+              <div className="md:hidden">
+                {user ? (
                   <Button
                     variant="ghost"
-                    className="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                    onClick={() => navigateTo("/profile")}
+                    className="p-2"
                   >
                     <User className="h-5 w-5" />
-                    <span className="font-medium">{user.displayName || "Profile"}</span>
                   </Button>
-                  
-                  {/* Dropdown Menu */}
-                  <div className="absolute right-0 top-12 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50">
-                    <div className="p-2">
-                      <Link
-                        href="/profile"
-                        className="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                      >
-                        <User className="h-4 w-4" />
-                        My Profile
-                      </Link>
-                      <Link
-                        href="/orders"
-                        className="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                      >
-                        <Package className="h-4 w-4" />
-                        My Orders
-                      </Link>
-                      <Link
-                        href="/wishlist"
-                        className="flex items-center gap-3 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                      >
-                        <Heart className="h-4 w-4" />
-                        Wishlist
-                      </Link>
-                      
-                      {/* Admin Route - Only show if user is admin */}
-                      {/* {user.role === 'admin' && (
-                        <Link
-                          href="/admin"
-                          className="flex items-center gap-3 px-3 py-2 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md transition-colors"
-                        >
-                          <Settings className="h-4 w-4" />
-                          Admin Panel
-                        </Link>
-                      )} */}
-                      
-                      <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                      <button
-                        onClick={handleLogout}
-                        className="flex items-center gap-3 w-full px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
-                      >
-                        <LogOut className="h-4 w-4" />
-                        Logout
-                      </button>
+                ) : (
+                  <Button onClick={() => navigateTo("/auth/login")} size="sm">
+                    Login
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile Search Bar */}
+          {isSearchOpen && (
+            <div className="md:hidden pb-4 border-t border-gray-200 pt-4">
+              <div className="flex items-center space-x-2">
+                <form onSubmit={handleSearch} className="flex-1 flex space-x-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      type="text"
+                      placeholder="Search products..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 pr-4"
+                      autoFocus
+                    />
+                  </div>
+                  <Button type="submit" size="sm">
+                    Go
+                  </Button>
+                </form>
+                <Button
+                  variant="ghost"
+                  onClick={() => setIsSearchOpen(false)}
+                  className="p-2"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile Menu */}
+        {isMenuOpen && (
+          <div className="md:hidden fixed inset-0 z-50 bg-black bg-opacity-50">
+            <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-lg">
+              {/* Header */}
+              <div className="p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                      <span className="text-white font-bold text-sm">S</span>
                     </div>
+                    <span className="font-bold text-lg">ShopSmart</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setIsMenuOpen(false)}
+                    className="p-1"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+                {user && (
+                  <p className="text-sm text-gray-600 mt-2">{user.email}</p>
+                )}
+              </div>
+              {/* Navigation */}
+              <div className="p-4 space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto">
+                {/* Main Navigation */}
+                <div className="space-y-1">
+                  <Button
+                    variant={isActivePath("/") ? "secondary" : "ghost"}
+                    onClick={() => navigateTo("/")}
+                    className="w-full justify-start"
+                  >
+                    <Home className="h-4 w-4 mr-3" />
+                    Home
+                  </Button>
+
+                  <Button
+                    variant={isActivePath("/products") ? "secondary" : "ghost"}
+                    onClick={() => navigateTo("/products")}
+                    className="w-full justify-start"
+                  >
+                    <Package className="h-4 w-4 mr-3" />
+                    Products
+                  </Button>
+
+                  <Button
+                    variant={isActivePath("/cart") ? "secondary" : "ghost"}
+                    onClick={() => navigateTo("/cart")}
+                    className="w-full justify-start"
+                  >
+                    <div className="relative">
+                      <ShoppingCart className="h-4 w-4 mr-3" />
+                      {cartItemsCount > 0 && (
+                        <span className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center">
+                          {cartItemsCount}
+                        </span>
+                      )}
+                    </div>
+                    Cart
+                  </Button>
+                </div>
+
+                {/* User Sections */}
+                {user && (
+                  <div className="space-y-1 pt-4 border-t border-gray-200">
+                    <Button
+                      variant={isActivePath("/orders") ? "secondary" : "ghost"}
+                      onClick={() => navigateTo("/orders")}
+                      className="w-full justify-start"
+                    >
+                      <History className="h-4 w-4 mr-3" />
+                      Orders
+                    </Button>
+
+                    <Button
+                      variant={
+                        isActivePath("/wishlist") ? "secondary" : "ghost"
+                      }
+                      onClick={() => navigateTo("/wishlist")}
+                      className="w-full justify-start"
+                    >
+                      <Heart className="h-4 w-4 mr-3" />
+                      Wishlist
+                    </Button>
+
+                    <Button
+                      variant={isActivePath("/profile") ? "secondary" : "ghost"}
+                      onClick={() => navigateTo("/profile")}
+                      className="w-full justify-start"
+                    >
+                      <User className="h-4 w-4 mr-3" />
+                      Profile
+                    </Button>
+
+                    {/* Admin Section in Mobile */}
+                    <div className="pt-2 border-t border-gray-200">
+                      <Button
+                        onClick={handleAdminNavigation}
+                        className={`w-full justify-start ${
+                          needsUserDoc
+                            ? "text-orange-600 hover:text-orange-700"
+                            : isAdmin
+                            ? "text-blue-600 hover:text-blue-700"
+                            : "text-gray-600 hover:text-gray-700"
+                        }`}
+                      >
+                        <Shield className="h-4 w-4 mr-3" />
+                        {checking
+                          ? "Checking Admin..."
+                          : needsUserDoc
+                          ? "Setup Admin Access"
+                          : isAdmin
+                          ? "Admin Panel"
+                          : "Request Admin Access"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick Actions Grid */}
+                <div className="pt-4 border-t border-gray-200">
+                  <div className="grid grid-cols-3 gap-2">
+                    {quickActions.map((action) => (
+                      <button
+                        key={action.path}
+                        onClick={() => navigateTo(action.path)}
+                        className="flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="relative">
+                          <action.icon className="h-5 w-5 text-gray-600" />
+                          {action.badge && action.badge > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center">
+                              {action.badge}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs mt-1 text-gray-600">
+                          {action.label}
+                        </span>
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setIsSearchOpen(true)}
+                      className="flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      <Search className="h-5 w-5 text-gray-600" />
+                      <span className="text-xs mt-1 text-gray-600">Search</span>
+                    </button>
                   </div>
                 </div>
               </div>
-            ) : (
-              // Guest User - Desktop
-              <div className="hidden md:flex items-center gap-3">
-                <Link href="/auth/login">
-                  <Button variant="ghost" className="text-gray-700 dark:text-gray-300">
-                    Login
+              // In your Navbar.tsx - Add vendor link
+              {user && (
+                <Link href="/vendor/dashboard">
+                  <Button
+                    variant="ghost"
+                    className="flex items-center space-x-2 text-green-600 hover:text-green-700"
+                  >
+                    <Store className="h-4 w-4" />
+                    <span>My Store</span>
                   </Button>
                 </Link>
-                <Link href="/auth/register">
-                  <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                    Sign Up
+              )}
+              {/* Footer */}
+              <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 bg-white">
+                {user ? (
+                  <Button
+                    onClick={handleLogout}
+                    variant="outline"
+                    className="w-full justify-center text-red-600 hover:text-red-700"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
                   </Button>
-                </Link>
+                ) : (
+                  <div className="space-y-2">
+                    <Button
+                      onClick={() => navigateTo("/auth/login")}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Login
+                    </Button>
+                    <Button
+                      onClick={() => navigateTo("/auth/register")}
+                      className="w-full bg-blue-600 hover:bg-blue-700"
+                    >
+                      Sign Up
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
-
-            {/* Mobile Menu Button */}
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              className="md:hidden p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-            >
-              {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Search Bar */}
-        {isOpen && (
-          <div className="md:hidden pb-4">
-            <form onSubmit={handleSearch}>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <input
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-            </form>
+            </div>
           </div>
         )}
-      </div>
+      </nav>
 
-      {/* Mobile Menu */}
-      {isOpen && (
-        <div className="md:hidden absolute top-16 left-0 right-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-lg z-40">
-          <div className="px-4 py-4 space-y-4">
-            {/* Navigation Links */}
-            <div className="space-y-2">
-              <Link
-                href="/"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-3 py-2 px-4 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors font-medium"
-              >
-                <Home className="h-5 w-5" />
-                Home
-              </Link>
-              
-              <Link
-                href="/products"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-3 py-2 px-4 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors font-medium"
-              >
-                <ShoppingBag className="h-5 w-5" />
-                Products
-              </Link>
-            </div>
-
-            {/* User Specific Links */}
-            {user ? (
-              <div className="space-y-2 border-t border-gray-200 dark:border-gray-700 pt-4">
-                <Link
-                  href="/profile"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-3 py-2 px-4 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                >
-                  <User className="h-5 w-5" />
-                  My Profile
-                </Link>
-                <Link
-                  href="/cart"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-3 py-2 px-4 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                >
-                  <ShoppingCart className="h-5 w-5" />
-                  Cart
-                </Link>
-                <Link
-                  href="/orders"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-3 py-2 px-4 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                >
-                  <Package className="h-5 w-5" />
-                  My Orders
-                </Link>
-                <Link
-                  href="/wishlist"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-3 py-2 px-4 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                >
-                  <Heart className="h-5 w-5" />
-                  Wishlist
-                </Link>
-                
-                {/* Admin Link for Mobile */}
-                {/* {user.role === 'admin' && (
-                  <Link
-                    href="/admin"
-                    onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-3 py-2 px-4 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
-                  >
-                    <Settings className="h-5 w-5" />
-                    Admin Panel
-                  </Link>
-                )} */}
-                
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-3 w-full py-2 px-4 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-left"
-                >
-                  <LogOut className="h-5 w-5" />
-                  Logout
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2 border-t border-gray-200 dark:border-gray-700 pt-4">
-                <Link
-                  href="/auth/login"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-3 py-2 px-4 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors font-medium"
-                >
-                  Log In
-                </Link>
-                <Link
-                  href="/auth/register"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-3 py-2 px-4 text-center bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors font-medium"
-                >
-                  Sign Up
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
+      {/* Overlay for mobile menu */}
+      {isMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+          onClick={() => setIsMenuOpen(false)}
+        />
       )}
-    </nav>
+    </>
   );
 }

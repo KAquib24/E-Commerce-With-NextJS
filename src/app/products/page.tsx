@@ -180,6 +180,7 @@ export default function ProductsPage() {
                 rating={product.rating || 0}
                 category={product.category || ""}
                 viewMode={viewMode}
+                showWishlistButton={true}
               />
             ))}
           </div>

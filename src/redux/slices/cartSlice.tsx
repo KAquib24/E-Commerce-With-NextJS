@@ -22,6 +22,7 @@ interface CartState {
   total: number;
   discount: number;
   couponCode: string | null;
+  loading: boolean; // ADD THIS LINE
 }
 
 // Load cart from localStorage
@@ -41,6 +42,7 @@ const loadCartFromStorage = (): CartState => {
     total: 0,
     discount: 0,
     couponCode: null,
+    loading: false, // ADD THIS LINE
   };
 };
 
@@ -178,6 +180,11 @@ export const cartSlice = createSlice({
       const savedCart = loadCartFromStorage();
       return savedCart;
     },
+
+    // Set loading state
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
+    },
   },
 });
 
@@ -191,7 +198,8 @@ export const {
   applyCoupon,
   removeCoupon,
   calculateTotal,
-  syncCartFromStorage
+  syncCartFromStorage,
+  setLoading
 } = cartSlice.actions;
 
 export default cartSlice.reducer;
