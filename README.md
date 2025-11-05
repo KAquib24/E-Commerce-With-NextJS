@@ -12,7 +12,7 @@
 
 **Where Modern Design Meets Seamless Shopping Experience**
 
-[🌐 Live Demo](https://full-stack-ecommerce-website-five.vercel.app/) • [🛠️ Features](#-features) • [⚡ Quick Start](#-installation)
+[🌐 Live Demo](https://full-stack-ecommerce-website-five.vercel.app/) 
 
 </div>
 
